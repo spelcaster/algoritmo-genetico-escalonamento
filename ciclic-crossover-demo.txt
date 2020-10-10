@@ -1,0 +1,25 @@
+    0 1 2 3 4 5 6 7
+p1: 7 5 1 4 3 6 8 2
+p2: 3 4 8 7 5 2 6 1
+
+pos 2: 1
+
+offspring: 3 4 8 7 5 2 6 1
+
+0 1 2 3 4 5 6 7
+3 4 * 7 5 2 6 1  | 8 -> 1 na posicao 2
+3 4 1 7 5 2 6 2  | 1 -> 2 na posicao 7
+3 4 1 7 5 6 6 2  | 2 -> 6 na posicao 5
+3 4 1 7 5 6 8 2  | 6 -> 8 na posicao 6
+
+8 -> 8
+
+
+primeiro gene a ser trocado = 8
+array de posicoes percorridas [2,7,5,6]
+
+3 4 8 7 5 2 6 1
+    Pegar o gene na posicao 2 do pai 1
+    Inserir este gene na posicao 2 do filho
+    Atualiza posicao, onde nova posicao deve ser a posicao em que o gene inserido exista no filho e a posicao deve ser diferente de 2
+

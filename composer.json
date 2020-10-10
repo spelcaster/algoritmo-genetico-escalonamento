@@ -1,0 +1,19 @@
+{
+    "name": "hugocarmo/algoritmo-genetico-escalonamento",
+    "description": "Trabalho de Mestrado FACOM - Computação Evolutiva - Escalonamento",
+    "type": "project",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Hugo Augusto Freitas do Carmo",
+            "email": "hugrito.kun@gmail.com"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "EvilComp\\": "src/"
+        }
+    },
+    "minimum-stability": "dev",
+    "require": {}
+}
