@@ -49,7 +49,7 @@ class TaskList
         while ($node->getChild()) {
             $node = $node->getChild();
 
-            printf(" -> ");
+            print(" -> ");
 
             $node->dump();
         }
@@ -141,8 +141,6 @@ class TaskList
 
     public function search($taskId)
     {
-        $node = $this->firstNode;
-
         return $this->rSearch($this->firstNode, $taskId);
     }
 
