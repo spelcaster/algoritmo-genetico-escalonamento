@@ -15,11 +15,11 @@ class Chromosome
     protected $processors;
     protected $size;
 
-    public function __construct()
+    public function __construct(array $tasks = [], array $processors = [])
     {
-        $this->size = 0;
-        $this->tasks = [];
-        $this->processors = [];
+        $this->size = count($tasks);
+        $this->tasks = $tasks;
+        $this->processors = $processors;
     }
 
     public function dump() {
@@ -41,7 +41,7 @@ class Chromosome
 
     public function getProcessors()
     {
-        return $this->tasks;
+        return $this->processors;
     }
 
     public function getSize()
@@ -52,12 +52,15 @@ class Chromosome
     public function addTask($index, $taskId, $coreId)
     {
         if (isset($this->tasks[$index])) {
-            return;
+            $this->tasks[$index] = $taskId;
+            $this->processors[$index] = $coreId;
+            return $this;
         }
 
         $this->tasks[$index] = $taskId;
         $this->processors[$index] = $coreId;
         ++$this->size;
+        return $this;
     }
 
     public function correct(TaskListHandler $taskListHandler)
@@ -98,6 +101,8 @@ class Chromosome
 
             $i = min($i, $taskPos);
         }
+
+        return $this;
     }
 
     public function swap($posA, $posB)

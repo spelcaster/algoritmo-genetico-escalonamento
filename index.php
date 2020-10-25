@@ -3,18 +3,15 @@
 
 require __DIR__ . '/vendor/autoload.php';
 
-use EvilComp\Entities\TaskNode;
-use EvilComp\Entities\TaskList;
-
 use EvilComp\CrossoverOperator\Cycle2CrossoverOperator;
-use EvilComp\MutationOperator\SwapMutationOperator;
-
-use EvilComp\Handlers\TaskHandler;
-use EvilComp\Handlers\PathHandler;
-use EvilComp\Handlers\TaskListHandler;
 use EvilComp\Entities\Chromosome;
 use EvilComp\FitnessOperator\TaskSchedulingFitnessOperator;
-
+use EvilComp\Handlers\PathHandler;
+use EvilComp\Handlers\TaskHandler;
+use EvilComp\Handlers\TaskListHandler;
+use EvilComp\MutationOperator\SwapMutationOperator;
+use EvilComp\SelectionEngine\TournamentSelection;
+use EvilComp\GeneticAlgorithm;
 
 $pathHandler = new PathHandler('resources/paths.csv');
 
@@ -23,8 +20,22 @@ $taskHandler = new TaskHandler('resources/tasks.csv');
 $taskListHandler = new TaskListHandler($taskHandler, $pathHandler);
 $taskListHandler->generate([0]);
 
-$chromosome = Chromosome::factory($taskHandler);
-$chromosome->correct($taskListHandler);
-
 $fitnessOperator = new TaskSchedulingFitnessOperator();
-$fitnessOperator->calculate($chromosome, $taskHandler, $taskListHandler);
+
+$fitnessOperator->setTaskHandler($taskHandler)
+    ->setTaskListHandler($taskListHandler);
+
+$crossoverOperator = new Cycle2CrossoverOperator();
+
+$selectionEngine = new TournamentSelection();
+
+$mutationOperator = new SwapMutationOperator();
+
+$ga = new GeneticAlgorithm(10);
+
+$ga->setCrossoverOperator($crossoverOperator)
+   ->setMutationOperator($mutationOperator)
+    ->setSelectionEngine($selectionEngine)
+    ->setFitnessOperator($fitnessOperator);
+
+$ga->run($taskHandler, $taskListHandler);

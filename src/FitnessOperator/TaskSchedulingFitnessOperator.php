@@ -3,13 +3,12 @@
 namespace EvilComp\FitnessOperator;
 
 use EvilComp\Entities\Chromosome;
-use EvilComp\Handlers\TaskHandler;
 use EvilComp\Handlers\TaskListHandler;
 
 /**
  * Class TaskSchedulingFitnessOperator
  */
-class TaskSchedulingFitnessOperator
+class TaskSchedulingFitnessOperator extends FitnessOperatorAbstract
 {
     public function hasPendingTasks($cores)
     {
@@ -49,9 +48,7 @@ class TaskSchedulingFitnessOperator
 
 
     public function calculate(
-        Chromosome $chromosome,
-        TaskHandler $taskHandler,
-        TaskListHandler $taskListHandler
+        Chromosome $chromosome
     ) {
         $taskTimers = [];
         $processors = $chromosome->getProcessors();
@@ -83,14 +80,14 @@ class TaskSchedulingFitnessOperator
             $gene = $pCores[$core][0];
 
             $taskListDependency = $this->getTaskListDependency(
-                $gene, $taskListHandler, $taskTimers
+                $gene, $this->getTaskListHandler(), $taskTimers
             );
 
             if ($taskListDependency === false) {
                 $core = ($core + 1) % 2;
                 continue;
             } else if (!$taskListDependency) {
-                $task = $taskHandler->at($gene);
+                $task = $this->getTaskHandler()->at($gene);
                 $taskExecTime = $task[1];
 
                 $time = $pCoreTimers[$core] + $taskExecTime;
@@ -103,11 +100,11 @@ class TaskSchedulingFitnessOperator
                 continue;
             }
 
-            $task = $taskHandler->at($gene);
+            $task = $this->getTaskHandler()->at($gene);
             $taskExecTime = $task[1];
 
             $dependencyTime = 0;
-            $deliveryTime = 0;
+            //$deliveryTime = 0;
             foreach ($taskListDependency as $l) {
                 $node = $l->getLastNodeDependency($gene);
 
@@ -119,17 +116,24 @@ class TaskSchedulingFitnessOperator
 
                 $dependencyTime = $taskTimers[$node->getTaskId()];
 
-                $currentNode = $l->search($gene);
-                $deliveryTime = $currentNode->getDeliveryTime();
+                //$currentNode = $l->search($gene);
+                //$deliveryTime = $currentNode->getDeliveryTime();
             }
 
-            $time = max($pCoreTimers[$core], $dependencyTime) + $taskExecTime + $deliveryTime;
+            //$time = max($pCoreTimers[$core], $dependencyTime) + $taskExecTime + $deliveryTime;
+            $time = max($pCoreTimers[$core], $dependencyTime) + $taskExecTime;
 
             $pCoreTimers[$core] = $time;
             $taskTimers[$gene] = $time;
             $procTime = $time;
 
             array_shift($pCores[$core]);
+        }
+
+        if ($procTime <= 37) {
+            var_dump($procTime);
+            $chromosome->dump();
+            exit();
         }
 
         return $procTime;

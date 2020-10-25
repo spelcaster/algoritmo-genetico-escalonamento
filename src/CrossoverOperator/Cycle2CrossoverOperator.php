@@ -2,15 +2,17 @@
 
 namespace EvilComp\CrossoverOperator;
 
+use EvilComp\Entities\Chromosome;
+
 /**
  * Class Cycle2CrossoverOperator
  * @author yourname
  */
 class Cycle2CrossoverOperator implements CrossoverOperatorInterface
 {
-    public function crossover(array $parentA, array $parentB)
+    public function crossover(Chromosome $parentA, Chromosome $parentB)
     {
-        $pos = mt_rand(0, count($parentA) - 1);
+        $pos = mt_rand(0, $parentA->getSize() - 1);
 
         $offspring1 = $this->getOffspring($parentA, $parentB, $pos);
         $offspring2 = $this->getOffspring($parentB, $parentA, $pos);
@@ -21,20 +23,27 @@ class Cycle2CrossoverOperator implements CrossoverOperatorInterface
         ];
     }
 
-    public function getOffspring(array $pA, array $pB, $pos)
+    public function getOffspring(Chromosome $pA, Chromosome $pB, $pos)
     {
-        $offspring = $pB;
+        $offspring = clone $pB;
+        $tasksOffspring = $offspring->getTasks();
 
-        $firstGene = $pB[$pos];
+        $tasksB = $pB->getTasks();
 
-        while ($pA[$pos] != $firstGene) {
-            $gene = $pA[$pos];
-            $offspring[$pos] = $gene;
+        $tasksA = $pA->getTasks();
+        $processorsA = $pA->getProcessors();
 
-            for ($i = 0; $i < count($offspring); $i++) {
-                if (($offspring[$i] == $gene) && ($i == $pos)) {
+        $firstGene = $tasksB[$pos];
+
+        while ($tasksA[$pos] != $firstGene) {
+            $gene = $tasksA[$pos];
+
+            $offspring->addTask($pos, $gene, $processorsA[$pos]);
+
+            for ($i = 0; $i < $offspring->getSize(); $i++) {
+                if (($tasksOffspring[$i] == $gene) && ($i == $pos)) {
                     continue;
-                } else if ($offspring[$i] != $gene) {
+                } else if ($tasksOffspring[$i] != $gene) {
                     continue;
                 }
 
@@ -44,7 +53,7 @@ class Cycle2CrossoverOperator implements CrossoverOperatorInterface
             }
         }
 
-        $offspring[$pos] = $pA[$pos];
+        $offspring->addTask($pos, $tasksA[$pos], $processorsA[$pos]);
 
         return $offspring;
     }
