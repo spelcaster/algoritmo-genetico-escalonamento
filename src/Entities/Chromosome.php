@@ -69,66 +69,87 @@ class Chromosome
         while ($i < $this->getSize()) {
             $gene = $this->tasks[$i];
 
-            $taskDependency = [];
-            foreach ($taskListHandler->getTaskLists() as $l) {
-                $dependencies = $l->getDependencies($gene);
+            $taskDependency = $this->getTaskDependencies($taskListHandler, $i, $gene);
+            var_dump($taskDependency);
 
-                if (!$dependencies) {
-                    continue;
-                }
+            if (!$taskDependency['on_same_core'] && !$taskDependency['on_other_core']) {
+                ++$i;
+                continue;
+            } else if (!$taskDependency['on_same_core']) {
+                asort($taskDependency['on_other_core']);
+                var_dump($taskDependency['on_other_core']);
 
-                foreach ($dependencies as $dependency) {
-                    $taskPos = array_search($dependency, $this->tasks);
-                    $proc = $this->processors[$taskPos];
+                while($taskDependency['on_other_core']) {
+                    $taskPos = key($taskDependency['on_other_core']);
+                    array_shift($taskDependency['on_other_core']);
 
-                    if ($taskPos < $i) {
-                        continue;
-                    } else if ($proc != $this->processors[$i]) {
-                        $nextTaskPos = $i + 1;
-                        $lowerBoundary = min($nextTaskPos, $taskPos);
-                        $upperBoundary = max($nextTaskPos, $taskPos);
+                    $nextTaskPos = $i + 1;
+                    $lowerBoundary = min($nextTaskPos, $taskPos);
+                    $upperBoundary = max($nextTaskPos, $taskPos);
 
-                        if ($lowerBoundary == $upperBoundary) {
-                            continue;
-                        }
+                    $taskPos = $this->getInnerDependencyPos(
+                        $taskListHandler, $this->processors[$i], $lowerBoundary, $upperBoundary
+                    );
 
-                        $taskPos = $this->getInnerDependencyPos(
-                            $taskListHandler, $this->processors[$i], $lowerBoundary, $upperBoundary
-                        );
-
-                        if ($taskPos === false) {
-                            continue;
-                        }
-
-                        $this->swap($i, $taskPos);
-                        $i = min($i, $taskPos);
+                    if ($taskPos === false) {
+                        var_dump('wololo');
                         continue;
                     }
 
-                    $taskDependency[$taskPos] = $dependency;
-                }
-            }
+                    $this->swap($i, $taskPos);
+                    $i = min($i, $taskPos);
 
-            if (!$taskDependency) {
+                    continue 2;
+                }
+
                 ++$i;
                 continue;
             }
 
-            asort($taskDependency);
-
-            $taskPos = array_search(array_shift($taskDependency), $this->tasks);
-
+            asort($taskDependency['on_same_core']);
+            $taskPos = key($taskDependency['on_same_core']);
             $this->swap($i, $taskPos);
-
             $i = min($i, $taskPos);
         }
 
         return $this;
     }
 
+    protected function getTaskDependencies(TaskListHandler $taskListHandler, $currentPos, $currentGene)
+    {
+        $taskDependency = [
+            'on_same_core' => [],
+            'on_other_core' => [],
+        ];
+
+        foreach ($taskListHandler->getTaskLists() as $taskList) {
+            $dependencies = $taskList->getDependencies($currentGene);
+
+            if (!$dependencies) {
+                continue;
+            }
+
+            foreach ($dependencies as $dependency) {
+                $taskPos = array_search($dependency, $this->tasks);
+                $proc = $this->processors[$taskPos];
+
+                if ($taskPos < $currentPos) {
+                    continue;
+                } else if ($proc != $this->processors[$currentPos]) {
+                    $taskDependency['on_other_core'][$taskPos] = $dependency;
+                    continue;
+                }
+
+                $taskDependency['on_same_core'][$taskPos] = $dependency;
+            }
+        }
+
+        return $taskDependency;
+    }
+
     public function getInnerDependencyPos(TaskListHandler $taskListHandler, $currentProc, $begin, $end)
     {
-        for ($i = $begin; $i < $end; $i++) {
+        for ($i = $begin; $i <= $end; $i++) {
             $gene = $this->tasks[$i];
 
             foreach ($taskListHandler->getTaskLists() as $l) {
