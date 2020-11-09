@@ -79,8 +79,29 @@ class Chromosome
 
                 foreach ($dependencies as $dependency) {
                     $taskPos = array_search($dependency, $this->tasks);
+                    $proc = $this->processors[$taskPos];
 
                     if ($taskPos < $i) {
+                        continue;
+                    } else if ($proc != $this->processors[$i]) {
+                        $nextTaskPos = $i + 1;
+                        $lowerBoundary = min($nextTaskPos, $taskPos);
+                        $upperBoundary = max($nextTaskPos, $taskPos);
+
+                        if ($lowerBoundary == $upperBoundary) {
+                            continue;
+                        }
+
+                        $taskPos = $this->getInnerDependencyPos(
+                            $taskListHandler, $this->processors[$i], $lowerBoundary, $upperBoundary
+                        );
+
+                        if ($taskPos === false) {
+                            continue;
+                        }
+
+                        $this->swap($i, $taskPos);
+                        $i = min($i, $taskPos);
                         continue;
                     }
 
@@ -103,6 +124,38 @@ class Chromosome
         }
 
         return $this;
+    }
+
+    public function getInnerDependencyPos(TaskListHandler $taskListHandler, $currentProc, $begin, $end)
+    {
+        for ($i = $begin; $i < $end; $i++) {
+            $gene = $this->tasks[$i];
+
+            foreach ($taskListHandler->getTaskLists() as $l) {
+                $dependencies = $l->getDependencies($gene);
+
+                if (!$dependencies) {
+                    continue;
+                }
+
+                foreach ($dependencies as $dependency) {
+                    $taskPos = array_search($dependency, $this->tasks);
+                    $proc = $this->processors[$taskPos];
+
+                    if (($taskPos < $i) || ($taskPos > $end)) {
+                        continue;
+                    } else if ($proc != $this->processors[$i]) {
+                        if ($proc == $currentProc) {
+                            return $taskPos;
+                        }
+
+                        return $i;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     public function swap($posA, $posB)

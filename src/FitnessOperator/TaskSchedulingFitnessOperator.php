@@ -23,7 +23,7 @@ class TaskSchedulingFitnessOperator extends FitnessOperatorAbstract
         return false;
     }
 
-    protected function getTaskListDependency($taskId, TaskListHandler $taskListHandler, array $taskTimers)
+    protected function getTaskListDependency($taskId, TaskListHandler $taskListHandler, array $executedTasks)
     {
         $taskListDependency = [];
 
@@ -35,7 +35,7 @@ class TaskSchedulingFitnessOperator extends FitnessOperatorAbstract
             }
 
             foreach ($dependencies as $dependency) {
-                if (!isset($taskTimers[$dependency])) {
+                if (!isset($executedTasks[$dependency])) {
                     return false;
                 }
             }
@@ -50,7 +50,7 @@ class TaskSchedulingFitnessOperator extends FitnessOperatorAbstract
     public function calculate(
         Chromosome $chromosome
     ) {
-        $taskTimers = [];
+        $executedTasks = [];
         $processors = $chromosome->getProcessors();
         $tasks = $chromosome->getTasks();
 
@@ -67,6 +67,8 @@ class TaskSchedulingFitnessOperator extends FitnessOperatorAbstract
         $cores = count($pCores);
         $core = 0;
 
+        $chromosome->dump();
+
         $procTime = 0;
         while ($this->hasPendingTasks($pCores)) {
             $time = 0;
@@ -80,7 +82,7 @@ class TaskSchedulingFitnessOperator extends FitnessOperatorAbstract
             $gene = $pCores[$core][0];
 
             $taskListDependency = $this->getTaskListDependency(
-                $gene, $this->getTaskListHandler(), $taskTimers
+                $gene, $this->getTaskListHandler(), $executedTasks
             );
 
             if ($taskListDependency === false) {
@@ -92,7 +94,11 @@ class TaskSchedulingFitnessOperator extends FitnessOperatorAbstract
 
                 $time = $pCoreTimers[$core] + $taskExecTime;
                 $pCoreTimers[$core] = $time;
-                $taskTimers[$gene] = $time;
+                $executedTasks[$gene] = [
+                    'time' => $time,
+                    'core' => $core,
+                ];
+
                 $procTime = $time;
 
                 array_shift($pCores[$core]);
@@ -104,33 +110,38 @@ class TaskSchedulingFitnessOperator extends FitnessOperatorAbstract
             $taskExecTime = $task[1];
 
             $dependencyTime = 0;
-            //$deliveryTime = 0;
+            $deliveryTime = 0;
             foreach ($taskListDependency as $l) {
                 $node = $l->getLastNodeDependency($gene);
 
-                if (!isset($taskTimers[$node->getTaskId()])) {
+                if (!isset($executedTasks[$node->getTaskId()])) {
                     throw new Exception("Something bad happened!");
-                } else if ($taskTimers[$node->getTaskId()] < $dependencyTime) {
+                } else if ($executedTasks[$node->getTaskId()]['time'] < $dependencyTime) {
                     continue;
                 }
 
-                $dependencyTime = $taskTimers[$node->getTaskId()];
+                $dependencyTime = $executedTasks[$node->getTaskId()]['time'];
 
-                //$currentNode = $l->search($gene);
-                //$deliveryTime = $currentNode->getDeliveryTime();
+                if ($executedTasks[$node->getTaskId()]['core'] != $core) {
+                    $currentNode = $l->search($gene);
+                    $deliveryTime = $currentNode->getDeliveryTime();
+                }
             }
 
-            //$time = max($pCoreTimers[$core], $dependencyTime) + $taskExecTime + $deliveryTime;
-            $time = max($pCoreTimers[$core], $dependencyTime) + $taskExecTime;
+            $time = max($pCoreTimers[$core], $dependencyTime) + $taskExecTime + $deliveryTime;
 
             $pCoreTimers[$core] = $time;
-            $taskTimers[$gene] = $time;
+            $executedTasks[$gene] = [
+                'time' => $time,
+                'core' => $core,
+            ];
+
             $procTime = $time;
 
             array_shift($pCores[$core]);
         }
 
-        if ($procTime <= 37) {
+        if ($procTime <= 41) {
             var_dump($procTime);
             $chromosome->dump();
             exit();
@@ -139,5 +150,21 @@ class TaskSchedulingFitnessOperator extends FitnessOperatorAbstract
         return $procTime;
     }
 
+    protected function dumpExecutedTasks(array $executedTasks)
+    {
+        $d = [];
+        foreach ($executedTasks as $taskId => $data) {
+            $d[] = "$taskId => {$data['time']}, {$data['core']}";
+        }
+
+        var_dump(implode("\n", $d));
+    }
+
+    protected function dumpCores(array $pCores)
+    {
+        foreach ($pCores as $core => $tasks) {
+            var_dump("{$core}: " . implode(", ", $tasks));
+        }
+    }
 }
 
