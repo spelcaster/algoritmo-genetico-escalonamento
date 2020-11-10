@@ -49,6 +49,17 @@ class Chromosome
         return $this->size;
     }
 
+    public function getProcessorsTasks()
+    {
+        $pCores = [];
+
+        for ($i = 0; $i < $this->getSize(); $i++) {
+            $pCores[$this->processors[$i]][] = $this->tasks[$i];
+        }
+
+        return $pCores;
+    }
+
     public function addTask($index, $taskId, $coreId)
     {
         if (isset($this->tasks[$index])) {
@@ -65,118 +76,169 @@ class Chromosome
 
     public function correct(TaskListHandler $taskListHandler)
     {
-        $i = 0;
-        while ($i < $this->getSize()) {
-            $gene = $this->tasks[$i];
+        $executedTasks = [];
 
-            $taskDependency = $this->getTaskDependencies($taskListHandler, $i, $gene);
-            var_dump($taskDependency);
+        $pCores = $this->getProcessorsTasks();
+        $blockedCores = $this->unblockProcessor($pCores, []);
 
-            if (!$taskDependency['on_same_core'] && !$taskDependency['on_other_core']) {
-                ++$i;
-                continue;
-            } else if (!$taskDependency['on_same_core']) {
-                asort($taskDependency['on_other_core']);
-                var_dump($taskDependency['on_other_core']);
-
-                while($taskDependency['on_other_core']) {
-                    $taskPos = key($taskDependency['on_other_core']);
-                    array_shift($taskDependency['on_other_core']);
-
-                    $nextTaskPos = $i + 1;
-                    $lowerBoundary = min($nextTaskPos, $taskPos);
-                    $upperBoundary = max($nextTaskPos, $taskPos);
-
-                    $taskPos = $this->getInnerDependencyPos(
-                        $taskListHandler, $this->processors[$i], $lowerBoundary, $upperBoundary
-                    );
-
-                    if ($taskPos === false) {
-                        var_dump('wololo');
-                        continue;
-                    }
-
-                    $this->swap($i, $taskPos);
-                    $i = min($i, $taskPos);
-
-                    continue 2;
-                }
-
-                ++$i;
+        $core = 0;
+        while ($this->hasPendingTasks($pCores)) {
+            if (!$pCores[$core]) {
+                $core = ($core + 1) % 2;
                 continue;
             }
 
-            asort($taskDependency['on_same_core']);
-            $taskPos = key($taskDependency['on_same_core']);
-            $this->swap($i, $taskPos);
-            $i = min($i, $taskPos);
-        }
+            $taskId = $pCores[$core][0];
 
-        return $this;
-    }
-
-    protected function getTaskDependencies(TaskListHandler $taskListHandler, $currentPos, $currentGene)
-    {
-        $taskDependency = [
-            'on_same_core' => [],
-            'on_other_core' => [],
-        ];
-
-        foreach ($taskListHandler->getTaskLists() as $taskList) {
-            $dependencies = $taskList->getDependencies($currentGene);
-
-            if (!$dependencies) {
-                continue;
+            if ($this->hasDeadlock($blockedCores)) {
+                break;
             }
 
-            foreach ($dependencies as $dependency) {
-                $taskPos = array_search($dependency, $this->tasks);
-                $proc = $this->processors[$taskPos];
-
-                if ($taskPos < $currentPos) {
-                    continue;
-                } else if ($proc != $this->processors[$currentPos]) {
-                    $taskDependency['on_other_core'][$taskPos] = $dependency;
-                    continue;
-                }
-
-                $taskDependency['on_same_core'][$taskPos] = $dependency;
-            }
-        }
-
-        return $taskDependency;
-    }
-
-    public function getInnerDependencyPos(TaskListHandler $taskListHandler, $currentProc, $begin, $end)
-    {
-        for ($i = $begin; $i <= $end; $i++) {
-            $gene = $this->tasks[$i];
-
-            foreach ($taskListHandler->getTaskLists() as $l) {
-                $dependencies = $l->getDependencies($gene);
+            foreach ($taskListHandler->getTaskLists() as $taskList) {
+                $dependencies = $taskList->getDependencies($taskId);
 
                 if (!$dependencies) {
                     continue;
                 }
 
                 foreach ($dependencies as $dependency) {
-                    $taskPos = array_search($dependency, $this->tasks);
-                    $proc = $this->processors[$taskPos];
-
-                    if (($taskPos < $i) || ($taskPos > $end)) {
+                    if (isset($executedTasks[$dependency])) {
                         continue;
-                    } else if ($proc != $this->processors[$i]) {
-                        if ($proc == $currentProc) {
-                            return $taskPos;
-                        }
-
-                        return $i;
+                    } else if ($blockedCores[$core] === false) {
+                        $blockedCores[$core] = $dependency;
+                        break;
                     }
+
+                    $blockedTask = $blockedCores[$core];
+
+                    if ($dependency < $blockedTask) {
+                        $blockedCores[$core] = $dependency;
+                    }
+
+                    break;
                 }
             }
+
+            if ($blockedCores[$core] !== false) {
+                $core = ($core + 1) % 2;
+                continue;
+            }
+
+            $executedTasks[$taskId] = true;
+            array_shift($pCores[$core]);
+
+            // must be done after shift
+            $blockedCores = $this->unblockProcessor($pCores, $blockedCores);
+            continue;
+        }
+
+        if ($this->hasDeadlock($blockedCores)) {
+            rsort($blockedCores);
+
+            $blockedTaskPos = null;
+            foreach ($blockedCores as $taskId) {
+                if ($core === false) {
+                    continue;
+                } else if (is_null($blockedTaskPos)) {
+                    $blockedTaskPos = array_search($taskId, $this->tasks);
+                    continue;
+                }
+
+                $pos = array_search($taskId, $this->tasks);
+
+                if ($pos < $blockedTaskPos) {
+                    $blockedTaskPos = $pos;
+                }
+            }
+
+            $lowestTaskId = current($blockedCores);
+
+            $currentTaskPos = null;
+            foreach ($pCores as $tasks) {
+                if (!$tasks) {
+                    continue;
+                }
+
+                $currentTask = current($tasks);
+
+                $pos = array_search($currentTask, $this->tasks);
+
+                if (is_null($currentTaskPos)) {
+                    $currentTaskPos = $pos;
+                } else if ($pos < $currentTaskPos) {
+                    $currentTaskPos = $pos;
+                }
+            }
+
+            $this->swap($currentTaskPos, $blockedTaskPos);
+
+            $this->correct($taskListHandler);
+        }
+    }
+
+    protected function unblockProcessor(array $pCores, array $blockedCores)
+    {
+        foreach ($pCores as $key => $tasks) {
+            if (!$tasks) {
+                unset($blockedCores[$key]);
+                continue;
+            }
+
+            $blockedCores[$key] = false;
+        }
+
+        return $blockedCores;
+    }
+
+    public function hasDeadlock(array $blockedCores)
+    {
+        if (!$blockedCores) {
+            return false;
+        }
+
+        $result = true;
+
+        foreach ($blockedCores as $core) {
+            $result &= ($core !== false);
+        }
+
+        return $result;
+    }
+
+    public function hasPendingTasks(array $cores)
+    {
+        foreach ($cores as $core) {
+            if (!$core) {
+                continue;
+            }
+
+            return true;
         }
 
         return false;
+    }
+
+    public function getTaskListDependency($taskId, TaskListHandler $taskListHandler, array $executedTasks)
+    {
+        $taskListDependency = [];
+
+        foreach ($taskListHandler->getTaskLists() as $taskList) {
+            $dependencies = $taskList->getDependencies($taskId);
+
+            if (!$dependencies) {
+                continue;
+            }
+
+            foreach ($dependencies as $dependency) {
+                if (!isset($executedTasks[$dependency])) {
+                    return false;
+                }
+            }
+
+            $taskListDependency[] = $taskList;
+        }
+
+        return $taskListDependency;
     }
 
     public function swap($posA, $posB)
