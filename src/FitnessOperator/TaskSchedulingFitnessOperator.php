@@ -67,8 +67,6 @@ class TaskSchedulingFitnessOperator extends FitnessOperatorAbstract
         $cores = count($pCores);
         $core = 0;
 
-        $chromosome->dump();
-
         $procTime = 0;
         while ($this->hasPendingTasks($pCores)) {
             $time = 0;

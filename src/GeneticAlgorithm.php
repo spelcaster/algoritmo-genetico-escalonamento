@@ -96,20 +96,22 @@ class GeneticAlgorithm
         for ($i = 0; $i < $this->populationSize; $i++) {
             $chromosome = Chromosome::factory($taskHandler);
             $chromosome->correct($taskListHandler);
-
-            $this->population[] = $chromosome;
+            $this->population[$i] = $chromosome;
         }
     }
 
     protected function selection($population, $selectionLimit)
     {
+        var_dump('selection');
         $this->selectionEngine->setPopulation($population);
 
         return $this->selectionEngine->select($selectionLimit);
     }
 
-    protected function crossover(array $selectedPopulation, $size)
-    {
+    protected function crossover(
+        TaskListHandler $taskListHandler, array $selectedPopulation, $size
+    ) {
+        var_dump('crossover');
         $offspring = [];
         for ($i = 0; $i < $size; $i+=2) {
             $j = $i + 1;
@@ -122,14 +124,23 @@ class GeneticAlgorithm
                 throw new RuntimeException("Crossover Operator failed to generate pair of children");
             }
 
+            foreach ($newOffspring as $chromosome) {
+                $chromosome->correct($taskListHandler);
+            }
+
             $offspring = array_merge($offspring, $newOffspring);
         }
 
         return $offspring;
     }
 
-    protected function mutation(array &$offspring, $size, $totalMutation)
-    {
+    protected function mutation(
+        TaskListHandler $taskListHandler,
+        array &$offspring,
+        $size,
+        $totalMutation
+    ) {
+        var_dump("mutation");
         $mutationCache = [];
 
         $i = 0;
@@ -140,9 +151,13 @@ class GeneticAlgorithm
                 continue;
             }
 
-            $offspring[$pos] = $this->mutationOperator->mutation(
+             $chromosome = $this->mutationOperator->mutation(
                 $offspring[$pos]
-            );
+             );
+
+            $chromosome->correct($taskListHandler);
+
+            $offspring[$pos] = $chromosome;
 
             ++$i;
         }
@@ -152,12 +167,22 @@ class GeneticAlgorithm
     {
         $selectionMethod = new ElitismSelection();
 
+        var_dump('prepare next generation');
+        foreach ($population as $p) {
+            $p['chromosome']->dump();
+        }
+
         $selectionMethod->setPopulation(array_merge($population, $offspring))
                         ->setIsGlobal(true);
 
         $nextGen = $selectionMethod->select($this->populationSize);
 
         shuffle($nextGen); // shuffle next generation
+
+        var_dump('next generation');
+        foreach ($nextGen as $p) {
+            $p->dump();
+        }
 
         $this->population = $nextGen;
     }
@@ -203,9 +228,9 @@ class GeneticAlgorithm
 
             $selectedParents = $this->selection($populationFitness, $offspringSize);
 
-            $offspring = $this->crossover($selectedParents, $offspringSize);
+            $offspring = $this->crossover($taskListHandler, $selectedParents, $offspringSize);
 
-            $this->mutation($offspring, $offspringSize, $mutationLimit);
+            $this->mutation($taskListHandler, $offspring, $offspringSize, $mutationLimit);
 
             //offspring fitness
             $offspringFitness = [];

@@ -68,13 +68,10 @@ class TournamentSelection extends SelectionEngineAbstract
 
     protected function draw()
     {
-        $rounds = $this->rounds;
-        $participants = $this->participants;
-
-        return $this->tournament($rounds, $participants);
+        return $this->tournament($this->rounds);
     }
 
-    protected function tournament($rounds, $participantLimit, $lastWinner = false)
+    protected function tournament($rounds, $lastWinner = false)
     {
         if ($rounds == 0) {
             return [
@@ -87,7 +84,7 @@ class TournamentSelection extends SelectionEngineAbstract
         $prop = $this->getRelativeFitnessProp();
         $epsilon = 0.0000000005;
 
-        $limit = $participantLimit;
+        $limit = $this->participants;
 
         if ($lastWinner) {
             --$limit;
@@ -112,6 +109,12 @@ class TournamentSelection extends SelectionEngineAbstract
             return 0;
         });
 
-        return $this->tournament(--$rounds, $participantLimit, $participants[0]);
+        $v = [];
+        foreach ($participants as $p) {
+            $v[] = $p[$prop];
+        }
+        var_dump(implode(", ", $v));
+
+        return $this->tournament(--$rounds, $participants[0]);
     }
 }

@@ -49,11 +49,11 @@ class Chromosome
         return $this->size;
     }
 
-    public function getProcessorsTasks()
+    public function getProcessorsTasks($begin = 0)
     {
         $pCores = [];
 
-        for ($i = 0; $i < $this->getSize(); $i++) {
+        for ($i = $begin; $i < $this->getSize(); $i++) {
             $pCores[$this->processors[$i]][] = $this->tasks[$i];
         }
 
@@ -74,16 +74,20 @@ class Chromosome
         return $this;
     }
 
-    public function correct(TaskListHandler $taskListHandler)
+    public function correct(TaskListHandler $taskListHandler, $beginPos = 0)
     {
         $executedTasks = [];
+        for ($i = 0; $i < $beginPos; $i++) {
+            $taskId = $this->tasks[$i];
+            $executedTasks[$taskId] = true;
+        }
 
-        $pCores = $this->getProcessorsTasks();
+        $pCores = $this->getProcessorsTasks($beginPos);
         $blockedCores = $this->unblockProcessor($pCores, []);
 
-        $core = 0;
+        $core = key($pCores);
         while ($this->hasPendingTasks($pCores)) {
-            if (!$pCores[$core]) {
+            if (!isset($pCores[$core]) || !$pCores[$core]) {
                 $core = ($core + 1) % 2;
                 continue;
             }
@@ -172,7 +176,7 @@ class Chromosome
 
             $this->swap($currentTaskPos, $blockedTaskPos);
 
-            $this->correct($taskListHandler);
+            $this->correct($taskListHandler, min($currentTaskPos, $blockedTaskPos));
         }
     }
 
